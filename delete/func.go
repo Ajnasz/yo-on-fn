@@ -36,11 +36,18 @@ func accountHandler(in io.Reader, out io.Writer) {
 	}
 
 	if token == user.Token {
-		err := redisClient.HDel("yoaccount", user.Name).Err()
+		var keys [3]string
+		keys[0] = "yoaccount"
+		keys[1] = "yoaccount_endpoint"
+		keys[2] = "yoaccount_key"
 
-		if err != nil {
-			io.WriteString(out, fmt.Sprintf("delete error %+v", err))
-			return
+		for i := 0; i < len(keys); i++ {
+			err := redisClient.HDel(keys[i], user.Name).Err()
+
+			if err != nil {
+				io.WriteString(out, fmt.Sprintf("delete error %+v", err))
+				return
+			}
 		}
 
 		redisSetName := "yoaccount_friend_" + user.Name

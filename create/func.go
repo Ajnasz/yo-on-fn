@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
 	"os"
 
 	"encoding/base64"
@@ -21,39 +21,54 @@ func init() {
 		Password: "",
 		DB:       9,
 	})
-
-	pong, err := redisClient.Ping().Result()
-	log.Println("PONG", pong)
-
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
 // GenerateToken returns a unique token based on the provided user string
-func GenerateToken(user string) string {
+func GenerateToken(user string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(user), bcrypt.DefaultCost)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 	// log.Println("Hash to store:", string(hash))
 
-	return base64.StdEncoding.EncodeToString(hash)
+	return base64.StdEncoding.EncodeToString(hash), nil
 }
 
 func accountHandler(in io.Reader, out io.Writer) {
 	var user struct {
-		Name string `json:"name"`
+		Name     string `json:"name"`
+		Endpoint string `json:"endpoint"`
+		Key      string `json:"key"`
 	}
 
 	json.NewDecoder(in).Decode(&user)
 
-	token := GenerateToken(user.Name)
-	err := redisClient.HSet("yoaccount", user.Name, token).Err()
+	token, err := GenerateToken(user.Name)
 
 	if err != nil {
-		io.WriteString(out, "ERROR")
-		log.Fatal(err)
+		io.WriteString(out, fmt.Sprintf("ERR: token generation %v", err))
+		return
+	}
+
+	err = redisClient.HSet("yoaccount", user.Name, token).Err()
+
+	if err != nil {
+		io.WriteString(out, fmt.Sprintf("ERR: account creation %v", err))
+		return
+	}
+
+	err = redisClient.HSet("yoaccount_endpoint", user.Name, user.Endpoint).Err()
+
+	if err != nil {
+		io.WriteString(out, fmt.Sprintf("ERR: account creation endpoint %v", err))
+		return
+	}
+
+	err = redisClient.HSet("yoaccount_key", user.Name, user.Key).Err()
+
+	if err != nil {
+		io.WriteString(out, fmt.Sprintf("ERR: account creation key %v", err))
+		return
 	}
 
 	io.WriteString(out, token)
