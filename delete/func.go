@@ -31,7 +31,7 @@ func accountHandler(in io.Reader, out io.Writer) {
 	token, err := redisClient.HGet("yoaccount", user.Name).Result()
 
 	if err != nil {
-		io.WriteString(out, fmt.Sprintf("Cant get token %+v", err))
+		io.WriteString(out, fmt.Sprintf("Can't get token %+v", err))
 		return
 	}
 

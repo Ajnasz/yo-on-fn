@@ -43,6 +43,35 @@ func accountHandler(in io.Reader, out io.Writer) {
 
 	json.NewDecoder(in).Decode(&user)
 
+	if user.Name == "" {
+		io.WriteString(out, "ERR: invalid username")
+		return
+	}
+
+	if user.Endpoint == "" {
+		io.WriteString(out, "ERR: invalid endpoint")
+		return
+	}
+
+	if user.Key == "" {
+		io.WriteString(out, "ERR: invalid key")
+		return
+	}
+
+	err := redisClient.HSet("yoaccount_endpoint", user.Name, user.Endpoint).Err()
+
+	if err != nil {
+		io.WriteString(out, fmt.Sprintf("ERR: account creation endpoint %v", err))
+		return
+	}
+
+	err = redisClient.HSet("yoaccount_key", user.Name, user.Key).Err()
+
+	if err != nil {
+		io.WriteString(out, fmt.Sprintf("ERR: account creation key %v", err))
+		return
+	}
+
 	token, err := GenerateToken(user.Name)
 
 	if err != nil {
@@ -54,20 +83,6 @@ func accountHandler(in io.Reader, out io.Writer) {
 
 	if err != nil {
 		io.WriteString(out, fmt.Sprintf("ERR: account creation %v", err))
-		return
-	}
-
-	err = redisClient.HSet("yoaccount_endpoint", user.Name, user.Endpoint).Err()
-
-	if err != nil {
-		io.WriteString(out, fmt.Sprintf("ERR: account creation endpoint %v", err))
-		return
-	}
-
-	err = redisClient.HSet("yoaccount_key", user.Name, user.Key).Err()
-
-	if err != nil {
-		io.WriteString(out, fmt.Sprintf("ERR: account creation key %v", err))
 		return
 	}
 

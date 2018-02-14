@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 
 	redis "github.com/go-redis/redis"
@@ -43,13 +45,14 @@ func isFriend(userName string, friendName string) (bool, error) {
 	return res, nil
 }
 
-func poke(pushData *PushData) (string, error) {
-	return pushData.Name + " poked " + pushData.FriendName, nil
+func poke(pushData *PushData) (*http.Response, error) {
+	var b bytes.Buffer
+	return http.Post(pushData.Endpoint, "text/plain", &b)
 }
 
 func getPushData(user PushUser) (*PushData, error) {
 	v := make(map[string]string)
-	var keys [3]string
+	var keys [2]string
 	keys[0] = "yoaccount_endpoint"
 	keys[1] = "yoaccount_key"
 
@@ -106,13 +109,13 @@ func accountHandler(in io.Reader, out io.Writer) {
 		io.WriteString(out, fmt.Sprintf("Can't get pushData %+v", err))
 		return
 	}
-	ret, err := poke(pushData)
+	resp, err := poke(pushData)
 	if err != nil {
 		io.WriteString(out, fmt.Sprintf("Can't poke %+v", err))
 		return
 	}
 
-	io.WriteString(out, ret)
+	io.Copy(out, resp.Body)
 }
 
 func main() {
