@@ -9,6 +9,19 @@ import (
 	redis "github.com/go-redis/redis"
 )
 
+type PushData struct {
+	Name       string `json:"name"`
+	FriendName string `json:"friendName"`
+	Endpoint   string `json:"endpoint"`
+	Key        string `json:"key"`
+}
+
+type PushUser struct {
+	Name       string `json:"name"`
+	FriendName string `json:"friendName"`
+	Token      string `json:"token"`
+}
+
 var redisClient *redis.Client
 
 func init() {
@@ -30,23 +43,44 @@ func isFriend(userName string, friendName string) (bool, error) {
 	return res, nil
 }
 
-func poke(userName, friendName string) string {
-	return userName + " poked " + friendName
+func poke(pushData *PushData) (string, error) {
+	return pushData.Name + " poked " + pushData.FriendName, nil
+}
+
+func getPushData(user PushUser) (*PushData, error) {
+	v := make(map[string]string)
+	var keys [3]string
+	keys[0] = "yoaccount_endpoint"
+	keys[1] = "yoaccount_key"
+
+	for i := 0; i < len(keys); i++ {
+		key := keys[i]
+		data, err := redisClient.HGet(key, user.FriendName).Result()
+
+		if err != nil {
+			return nil, err
+		}
+
+		v[key] = data
+	}
+
+	return &PushData{
+		Name:       user.Name,
+		FriendName: user.FriendName,
+		Endpoint:   v["yoaccount_endpoint"],
+		Key:        v["yoaccount_key"],
+	}, nil
 }
 
 func accountHandler(in io.Reader, out io.Writer) {
-	var user struct {
-		Name       string `json:"name"`
-		Token      string `json:"token"`
-		FriendName string `json:"friendName"`
-	}
+	var user PushUser
 
 	json.NewDecoder(in).Decode(&user)
 
 	token, err := redisClient.HGet("yoaccount", user.Name).Result()
 
 	if err != nil {
-		io.WriteString(out, fmt.Sprintf("Cant get token %+v", err))
+		io.WriteString(out, fmt.Sprintf("Can't get token %+v", err))
 		return
 	}
 
@@ -67,7 +101,18 @@ func accountHandler(in io.Reader, out io.Writer) {
 		return
 	}
 
-	io.WriteString(out, poke(user.Name, user.FriendName))
+	pushData, err := getPushData(user)
+	if err != nil {
+		io.WriteString(out, fmt.Sprintf("Can't get pushData %+v", err))
+		return
+	}
+	ret, err := poke(pushData)
+	if err != nil {
+		io.WriteString(out, fmt.Sprintf("Can't poke %+v", err))
+		return
+	}
+
+	io.WriteString(out, ret)
 }
 
 func main() {
