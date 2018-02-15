@@ -4,10 +4,20 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width">
 		<title>Index</title>
-		<script src="./pushnotification.js">
-		</script>
+		<script src="./pushnotification.js"></script>
 		</head>
 	<body>
-		body
+		<main role="main" id="App">
+			<p>YO {{ username }}</p>
+		</main>
+		<script src="https://unpkg.com/vue"></script>
+		<script>
+			const app = new Vue({
+				el: '#App',
+				data: {
+					username: 'unkown'
+				}
+			});
+		</script>
 	</body>
 </html>

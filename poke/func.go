@@ -9,6 +9,7 @@ import (
 	"os"
 
 	redis "github.com/go-redis/redis"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type PushData struct {
@@ -21,7 +22,7 @@ type PushData struct {
 type PushUser struct {
 	Name       string `json:"name"`
 	FriendName string `json:"friendName"`
-	Token      string `json:"token"`
+	Password   string `json:"password"`
 }
 
 var redisClient *redis.Client
@@ -87,8 +88,9 @@ func accountHandler(in io.Reader, out io.Writer) {
 		return
 	}
 
-	if token != user.Token {
-		io.WriteString(out, "INVALID TOKEN")
+	err = bcrypt.CompareHashAndPassword([]byte(token), []byte(user.Password))
+	if err != nil {
+		io.WriteString(out, fmt.Sprintf("Wrong password err: %+v", err))
 		return
 	}
 

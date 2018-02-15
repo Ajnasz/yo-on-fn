@@ -6,10 +6,8 @@ import (
 	"io"
 	"os"
 
-	"encoding/base64"
-	"golang.org/x/crypto/bcrypt"
-
 	redis "github.com/go-redis/redis"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var redisClient *redis.Client
@@ -24,24 +22,25 @@ func init() {
 }
 
 // GenerateToken returns a unique token based on the provided user string
-func GenerateToken(user string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(user), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
-	// log.Println("Hash to store:", string(hash))
-
-	return base64.StdEncoding.EncodeToString(hash), nil
+func GenerateToken(text string) ([]byte, error) {
+	return bcrypt.GenerateFromPassword([]byte(text), bcrypt.DefaultCost)
 }
 
 func accountHandler(in io.Reader, out io.Writer) {
 	var user struct {
 		Name     string `json:"name"`
+		Password string `json:"password"`
 		Endpoint string `json:"endpoint"`
 		Key      string `json:"key"`
 	}
 
-	json.NewDecoder(in).Decode(&user)
+	err := json.NewDecoder(in).Decode(&user)
+
+	if err != nil {
+		io.WriteString(out, "ERR: invalid json")
+	}
+
+	io.WriteString(out, fmt.Sprintf("json %+v", err))
 
 	if user.Name == "" {
 		io.WriteString(out, "ERR: invalid username")
@@ -58,7 +57,7 @@ func accountHandler(in io.Reader, out io.Writer) {
 		return
 	}
 
-	err := redisClient.HSet("yoaccount_endpoint", user.Name, user.Endpoint).Err()
+	err = redisClient.HSet("yoaccount_endpoint", user.Name, user.Endpoint).Err()
 
 	if err != nil {
 		io.WriteString(out, fmt.Sprintf("ERR: account creation endpoint %v", err))
@@ -72,21 +71,21 @@ func accountHandler(in io.Reader, out io.Writer) {
 		return
 	}
 
-	token, err := GenerateToken(user.Name)
+	token, err := GenerateToken(user.Password)
 
 	if err != nil {
 		io.WriteString(out, fmt.Sprintf("ERR: token generation %v", err))
 		return
 	}
 
-	err = redisClient.HSet("yoaccount", user.Name, token).Err()
+	err = redisClient.HSet("yoaccount", user.Name, string(token)).Err()
 
 	if err != nil {
 		io.WriteString(out, fmt.Sprintf("ERR: account creation %v", err))
 		return
 	}
 
-	io.WriteString(out, token)
+	io.WriteString(out, "OK")
 }
 
 func main() {

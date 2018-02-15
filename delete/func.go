@@ -7,6 +7,7 @@ import (
 	"os"
 
 	redis "github.com/go-redis/redis"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var redisClient *redis.Client
@@ -22,8 +23,8 @@ func init() {
 
 func accountHandler(in io.Reader, out io.Writer) {
 	var user struct {
-		Name  string `json:"name"`
-		Token string `json:"token"`
+		Name     string `json:"name"`
+		Password string `json:"password"`
 	}
 
 	json.NewDecoder(in).Decode(&user)
@@ -35,44 +36,44 @@ func accountHandler(in io.Reader, out io.Writer) {
 		return
 	}
 
-	if token == user.Token {
-		var keys [3]string
-		keys[0] = "yoaccount"
-		keys[1] = "yoaccount_endpoint"
-		keys[2] = "yoaccount_key"
-
-		for i := 0; i < len(keys); i++ {
-			err := redisClient.HDel(keys[i], user.Name).Err()
-
-			if err != nil {
-				io.WriteString(out, fmt.Sprintf("delete error %+v", err))
-				return
-			}
-		}
-
-		redisSetName := "yoaccount_friend_" + user.Name
-
-		for {
-			mem, err := redisClient.SRandMember(redisSetName).Result()
-
-			if err == redis.Nil {
-				break
-			} else if err != nil {
-				io.WriteString(out, fmt.Sprintf("get rand member: %s, %+v", user.Name, err))
-				return
-			}
-
-			err = redisClient.SRem(redisSetName, mem).Err()
-
-			if err != nil {
-				io.WriteString(out, fmt.Sprintf("SRem: %+v", err))
-				return
-			}
-		}
-
-	} else {
-		io.WriteString(out, "INVALID TOKEN")
+	err = bcrypt.CompareHashAndPassword([]byte(token), []byte(user.Password))
+	if err != nil {
+		io.WriteString(out, "Wrong password")
 		return
+	}
+
+	var keys [3]string
+	keys[0] = "yoaccount"
+	keys[1] = "yoaccount_endpoint"
+	keys[2] = "yoaccount_key"
+
+	for i := 0; i < len(keys); i++ {
+		err := redisClient.HDel(keys[i], user.Name).Err()
+
+		if err != nil {
+			io.WriteString(out, fmt.Sprintf("delete error %+v", err))
+			return
+		}
+	}
+
+	redisSetName := "yoaccount_friend_" + user.Name
+
+	for {
+		mem, err := redisClient.SRandMember(redisSetName).Result()
+
+		if err == redis.Nil {
+			break
+		} else if err != nil {
+			io.WriteString(out, fmt.Sprintf("get rand member: %s, %+v", user.Name, err))
+			return
+		}
+
+		err = redisClient.SRem(redisSetName, mem).Err()
+
+		if err != nil {
+			io.WriteString(out, fmt.Sprintf("SRem: %+v", err))
+			return
+		}
 	}
 
 	if err != nil {

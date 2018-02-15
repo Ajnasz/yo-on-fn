@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
 
 	redis "github.com/go-redis/redis"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var redisClient *redis.Client
@@ -39,13 +41,13 @@ func isExistingUser(userName string) (bool, error) {
 }
 
 func connectUser(name, friendName string) error {
-	return redisClient.SAdd("yoaccount_friend_" + name, friendName).Err()
+	return redisClient.SAdd("yoaccount_friend_"+name, friendName).Err()
 }
 
 func accountHandler(in io.Reader, out io.Writer) {
 	var user struct {
-		Name string `json:"name"`
-		Token string `json:"token"`
+		Name       string `json:"name"`
+		Password   string `json:"password"`
 		FriendName string `json:"friendName"`
 	}
 
@@ -59,8 +61,9 @@ func accountHandler(in io.Reader, out io.Writer) {
 		return
 	}
 
-	if token != user.Token {
-		io.WriteString(out, "INVALID TOKEN")
+	err = bcrypt.CompareHashAndPassword([]byte(token), []byte(user.Password))
+	if err != nil {
+		io.WriteString(out, fmt.Sprintf("Wrong password %+v %s, %s", err, token, user.Password))
 		return
 	}
 
